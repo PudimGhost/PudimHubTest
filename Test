@@ -163,27 +163,30 @@ end)
 
 task.spawn(function()
 	local player = game.Players.LocalPlayer
+	local function getSlot1Tool()
+		local backpack = player:FindFirstChild("Backpack")
+		if not backpack then return nil end
+		for _, item in ipairs(backpack:GetChildren()) do
+			if item:IsA("Tool") then
+				return item -- Retorna o primeiro Tool (slot 1)
+			end
+		end
+		return nil
+	end
+
 	while true do
 		if autoEquip and player and player.Character and player.Character:FindFirstChild("Humanoid") then
-			local backpack = player:FindFirstChild("Backpack")
-			if backpack then
-				local tools = backpack:GetChildren()
-				local firstTool = nil
-				for i, tool in ipairs(tools) do
-					if tool:IsA("Tool") then
-						firstTool = tool
-						break
-					end
-				end
-				if firstTool then
-					local equipped = player.Character:FindFirstChildOfClass("Tool")
-					if not equipped or equipped ~= firstTool then
-						player.Character.Humanoid:EquipTool(firstTool)
-					end
+			local correctTool = getSlot1Tool()
+			if correctTool then
+				local equippedTool = player.Character:FindFirstChildOfClass("Tool")
+				if not equippedTool or equippedTool ~= correctTool then
+					player.Character.Humanoid:UnequipTools()
+					task.wait(0.1)
+					player.Character.Humanoid:EquipTool(correctTool)
 				end
 			end
 		end
-		task.wait(0.25)
+		task.wait(0.2)
 	end
 end)
 
