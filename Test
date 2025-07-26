@@ -25,28 +25,30 @@ title.Font = Enum.Font.GothamBold
 title.TextSize = 18
 title.Parent = frame
 
--- Botões
-local function createButton(text, yOffset)
-	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(0.8, 0, 0, 30)
-	btn.Position = UDim2.new(0.1, 0, 0, yOffset)
-	btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-	btn.TextColor3 = Color3.new(1, 1, 1)
-	btn.Text = text
-	btn.Font = Enum.Font.SourceSansBold
-	btn.TextSize = 16
-	btn.Parent = frame
-	return btn
-end
+-- Botão ESP
+local button = Instance.new("TextButton")
+button.Size = UDim2.new(0.8, 0, 0, 40)
+button.Position = UDim2.new(0.1, 0, 0, 40)
+button.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+button.TextColor3 = Color3.new(1, 1, 1)
+button.Text = "Ativar ESP"
+button.Font = Enum.Font.SourceSansBold
+button.TextSize = 18
+button.Parent = frame
 
-local espButton = createButton("Ativar ESP", 40)
-local invisButton = createButton("Invisível", 80)
-local equipButton = createButton("AutoEquip", 120)
+-- Botão Super Pulo
+local jumpButton = Instance.new("TextButton")
+jumpButton.Size = UDim2.new(0.8, 0, 0, 40)
+jumpButton.Position = UDim2.new(0.1, 0, 0, 90)
+jumpButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+jumpButton.TextColor3 = Color3.new(1, 1, 1)
+jumpButton.Text = "Ativar Super Pulo"
+jumpButton.Font = Enum.Font.SourceSansBold
+jumpButton.TextSize = 18
+jumpButton.Parent = frame
 
 -- Variáveis
 local espEnabled = false
-local autoEquip = false
-local isInvisible = false
 local boxTable = {}
 local nameTable = {}
 
@@ -89,6 +91,7 @@ local function createESP(character, player)
 	nameTable[character] = billboard
 end
 
+-- Remover ESP
 local function removeESP(character)
 	if boxTable[character] then
 		boxTable[character]:Destroy()
@@ -100,9 +103,10 @@ local function removeESP(character)
 	end
 end
 
+-- Alternar ESP
 local function toggleESP()
 	espEnabled = not espEnabled
-	espButton.Text = espEnabled and "Desativar ESP" or "Ativar ESP"
+	button.Text = espEnabled and "Desativar ESP" or "Ativar ESP"
 
 	for _, player in pairs(game.Players:GetPlayers()) do
 		if player ~= game.Players.LocalPlayer then
@@ -118,88 +122,9 @@ local function toggleESP()
 	end
 end
 
-espButton.MouseButton1Click:Connect(toggleESP)
+button.MouseButton1Click:Connect(toggleESP)
 
--- Invisibilidade
-local function makeInvisible()
-	local char = game.Players.LocalPlayer.Character
-	if not char then return end
-	for _, part in pairs(char:GetDescendants()) do
-		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-			part.Transparency = 1
-			if part:FindFirstChildOfClass("Decal") then
-				for _, d in pairs(part:GetChildren()) do
-					if d:IsA("Decal") then
-						d.Transparency = 1
-					end
-				end
-			end
-		elseif part:IsA("Accessory") then
-			part:Destroy()
-		end
-	end
-	-- Torna itens invisíveis também
-	local tool = char:FindFirstChildOfClass("Tool")
-	if tool then
-		for _, part in pairs(tool:GetDescendants()) do
-			if part:IsA("BasePart") then
-				part.Transparency = 1
-			end
-		end
-	end
-end
-
-invisButton.MouseButton1Click:Connect(function()
-	isInvisible = not isInvisible
-	invisButton.Text = isInvisible and "Visível" or "Invisível"
-	if isInvisible then makeInvisible() end
-end)
-
--- AutoEquip apenas slot 1
-equipButton.MouseButton1Click:Connect(function()
-	autoEquip = not autoEquip
-	equipButton.Text = autoEquip and "AutoEquip ✔" or "AutoEquip"
-end)
-
-task.spawn(function()
-	local player = game.Players.LocalPlayer
-
-	local function getSlot1Tool()
-		local backpack = player:FindFirstChild("Backpack")
-		if not backpack then return nil end
-		for _, item in ipairs(backpack:GetChildren()) do
-			if item:IsA("Tool") then
-				return item
-			end
-		end
-		return nil
-	end
-
-	while true do
-		if autoEquip and player and player.Character and player.Character:FindFirstChild("Humanoid") then
-			local correctTool = getSlot1Tool()
-			local humanoid = player.Character:FindFirstChild("Humanoid")
-
-			if correctTool and humanoid then
-				local equippedTool = player.Character:FindFirstChildOfClass("Tool")
-
-				if not equippedTool or equippedTool ~= correctTool then
-					humanoid:UnequipTools()
-					task.wait(0.05)
-					humanoid:EquipTool(correctTool)
-				end
-
-				-- Força ativar o item, se possível
-				pcall(function()
-					correctTool:Activate()
-				end)
-			end
-		end
-		task.wait(0.2)
-	end
-end)
-
--- Aplicar ESP em novos jogadores
+-- Função para aplicar ESP em novos personagens
 local function onCharacterAdded(char, player)
 	task.wait(1)
 	if espEnabled then
@@ -207,6 +132,7 @@ local function onCharacterAdded(char, player)
 	end
 end
 
+-- Aplicar ESP aos jogadores existentes
 for _, player in pairs(game.Players:GetPlayers()) do
 	if player ~= game.Players.LocalPlayer then
 		player.CharacterAdded:Connect(function(char)
@@ -222,4 +148,34 @@ game.Players.PlayerAdded:Connect(function(player)
 	player.CharacterAdded:Connect(function(char)
 		onCharacterAdded(char, player)
 	end)
+end)
+
+-- SUPER PULO
+
+local superJump = false
+local normalJumpPower = 50 -- padrão
+
+local function toggleSuperJump()
+	superJump = not superJump
+	jumpButton.Text = superJump and "Desativar Super Pulo" or "Ativar Super Pulo"
+
+	local humanoid = game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid")
+	if humanoid then
+		if superJump then
+			normalJumpPower = humanoid.JumpPower
+			humanoid.JumpPower = normalJumpPower * 3
+		else
+			humanoid.JumpPower = normalJumpPower
+		end
+	end
+end
+
+jumpButton.MouseButton1Click:Connect(toggleSuperJump)
+
+-- Garantir que o super pulo volte após respawn
+game.Players.LocalPlayer.CharacterAdded:Connect(function(char)
+	char:WaitForChild("Humanoid")
+	if superJump then
+		char.Humanoid.JumpPower = normalJumpPower * 3
+	end
 end)
