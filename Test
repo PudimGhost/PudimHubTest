@@ -1,4 +1,4 @@
--- Pudim Hub GUI
+-- Criar GUI principal
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "PudimHubGUI"
 screenGui.ResetOnSpawn = false
@@ -6,7 +6,7 @@ screenGui.Parent = game.CoreGui
 
 -- Janela
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 200, 0, 150)
+frame.Size = UDim2.new(0, 200, 0, 160)
 frame.Position = UDim2.new(0, 20, 0, 100)
 frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 frame.BorderSizePixel = 0
@@ -17,6 +17,7 @@ frame.Parent = screenGui
 -- Título
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
+title.Position = UDim2.new(0, 0, 0, 0)
 title.BackgroundColor3 = Color3.fromRGB(255, 170, 0)
 title.Text = "🍮 Pudim Hub"
 title.TextColor3 = Color3.new(1, 1, 1)
@@ -24,147 +25,189 @@ title.Font = Enum.Font.GothamBold
 title.TextSize = 18
 title.Parent = frame
 
--- Botão ESP
-local button = Instance.new("TextButton")
-button.Size = UDim2.new(0.8, 0, 0, 40)
-button.Position = UDim2.new(0.1, 0, 0, 50)
-button.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-button.TextColor3 = Color3.new(1, 1, 1)
-button.Text = "Ativar ESP"
-button.Font = Enum.Font.SourceSansBold
-button.TextSize = 18
-button.Parent = frame
+-- Botões
+local function createButton(text, yOffset)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0.8, 0, 0, 30)
+	btn.Position = UDim2.new(0.1, 0, 0, yOffset)
+	btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+	btn.TextColor3 = Color3.new(1, 1, 1)
+	btn.Text = text
+	btn.Font = Enum.Font.SourceSansBold
+	btn.TextSize = 16
+	btn.Parent = frame
+	return btn
+end
 
--- Botão AutoEquipar Slot 1
-local autoEquipButton = Instance.new("TextButton")
-autoEquipButton.Size = UDim2.new(0.8, 0, 0, 30)
-autoEquipButton.Position = UDim2.new(0.1, 0, 0, 100)
-autoEquipButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-autoEquipButton.TextColor3 = Color3.new(1, 1, 1)
-autoEquipButton.Text = "Autoequipar Slot 1"
-autoEquipButton.Font = Enum.Font.SourceSansBold
-autoEquipButton.TextSize = 16
-autoEquipButton.Parent = frame
+local espButton = createButton("Ativar ESP", 40)
+local invisButton = createButton("Invisível", 80)
+local equipButton = createButton("AutoEquip", 120)
 
--- Variáveis ESP
+-- Variáveis
 local espEnabled = false
+local autoEquip = false
+local isInvisible = false
 local boxTable = {}
 local nameTable = {}
 
--- Função ESP
+-- Criar ESP
 local function createESP(character, player)
-    local root = character:FindFirstChild("HumanoidRootPart")
-    local head = character:FindFirstChild("Head")
-    if not root or not head then return end
-    if boxTable[character] or nameTable[character] then return end
+	local root = character:FindFirstChild("HumanoidRootPart")
+	local head = character:FindFirstChild("Head")
+	if not root or not head then return end
+	if boxTable[character] or nameTable[character] then return end
 
-    local box = Instance.new("BoxHandleAdornment")
-    box.Name = "BoxESP"
-    box.Adornee = root
-    box.Size = Vector3.new(2, 3, 1)
-    box.Color3 = Color3.fromRGB(255, 0, 0)
-    box.Transparency = 0.6
-    box.AlwaysOnTop = true
-    box.ZIndex = 10
-    box.Parent = root
-    boxTable[character] = box
+	local box = Instance.new("BoxHandleAdornment")
+	box.Name = "BoxESP"
+	box.Adornee = root
+	box.Size = Vector3.new(2, 3, 1)
+	box.Color3 = Color3.fromRGB(255, 0, 0)
+	box.Transparency = 0.6
+	box.AlwaysOnTop = true
+	box.ZIndex = 10
+	box.Parent = root
+	boxTable[character] = box
 
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "NameESP"
-    billboard.Size = UDim2.new(0, 100, 0, 30)
-    billboard.Adornee = head
-    billboard.AlwaysOnTop = true
-    billboard.StudsOffset = Vector3.new(0, 1.5, 0)
-    billboard.Parent = head
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "NameESP"
+	billboard.Size = UDim2.new(0, 100, 0, 30)
+	billboard.Adornee = head
+	billboard.AlwaysOnTop = true
+	billboard.StudsOffset = Vector3.new(0, 1.5, 0)
+	billboard.Parent = head
 
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Text = player.Name
-    label.TextColor3 = Color3.new(1, 1, 1)
-    label.TextStrokeTransparency = 0.3
-    label.TextScaled = true
-    label.Font = Enum.Font.SourceSansBold
-    label.Parent = billboard
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.Text = player.Name
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextStrokeTransparency = 0.3
+	label.TextScaled = true
+	label.Font = Enum.Font.SourceSansBold
+	label.Parent = billboard
 
-    nameTable[character] = billboard
+	nameTable[character] = billboard
 end
 
 local function removeESP(character)
-    if boxTable[character] then
-        boxTable[character]:Destroy()
-        boxTable[character] = nil
-    end
-    if nameTable[character] then
-        nameTable[character]:Destroy()
-        nameTable[character] = nil
-    end
+	if boxTable[character] then
+		boxTable[character]:Destroy()
+		boxTable[character] = nil
+	end
+	if nameTable[character] then
+		nameTable[character]:Destroy()
+		nameTable[character] = nil
+	end
 end
 
 local function toggleESP()
-    espEnabled = not espEnabled
-    button.Text = espEnabled and "Desativar ESP" or "Ativar ESP"
+	espEnabled = not espEnabled
+	espButton.Text = espEnabled and "Desativar ESP" or "Ativar ESP"
 
-    for _, player in pairs(game.Players:GetPlayers()) do
-        if player ~= game.Players.LocalPlayer then
-            local char = player.Character
-            if char then
-                if espEnabled then
-                    createESP(char, player)
-                else
-                    removeESP(char)
-                end
-            end
-        end
-    end
+	for _, player in pairs(game.Players:GetPlayers()) do
+		if player ~= game.Players.LocalPlayer then
+			local char = player.Character
+			if char then
+				if espEnabled then
+					createESP(char, player)
+				else
+					removeESP(char)
+				end
+			end
+		end
+	end
 end
 
-button.MouseButton1Click:Connect(toggleESP)
+espButton.MouseButton1Click:Connect(toggleESP)
 
-local function onCharacterAdded(char, player)
-    task.wait(1)
-    if espEnabled then
-        createESP(char, player)
-    end
+-- Invisibilidade
+local function makeInvisible()
+	local char = game.Players.LocalPlayer.Character
+	if not char then return end
+	for _, part in pairs(char:GetDescendants()) do
+		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+			part.Transparency = 1
+			if part:FindFirstChildOfClass("Decal") then
+				for _, d in pairs(part:GetChildren()) do
+					if d:IsA("Decal") then
+						d.Transparency = 1
+					end
+				end
+			end
+		elseif part:IsA("Accessory") then
+			part:Destroy()
+		end
+	end
+	-- Torna itens invisíveis também
+	local tool = char:FindFirstChildOfClass("Tool")
+	if tool then
+		for _, part in pairs(tool:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.Transparency = 1
+			end
+		end
+	end
 end
 
-for _, player in pairs(game.Players:GetPlayers()) do
-    if player ~= game.Players.LocalPlayer then
-        player.CharacterAdded:Connect(function(char)
-            onCharacterAdded(char, player)
-        end)
-        if player.Character then
-            onCharacterAdded(player.Character, player)
-        end
-    end
-end
-
-game.Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function(char)
-        onCharacterAdded(char, player)
-    end)
+invisButton.MouseButton1Click:Connect(function()
+	isInvisible = not isInvisible
+	invisButton.Text = isInvisible and "Visível" or "Invisível"
+	if isInvisible then makeInvisible() end
 end)
 
--- Autoequipar Slot 1
-local autoEquip = false
-autoEquipButton.MouseButton1Click:Connect(function()
+-- AutoEquip apenas slot 1
+equipButton.MouseButton1Click:Connect(function()
 	autoEquip = not autoEquip
-	autoEquipButton.Text = autoEquip and "Desligar Autoequipar" or "Autoequipar Slot 1"
+	equipButton.Text = autoEquip and "AutoEquip ✔" or "AutoEquip"
 end)
 
--- Loop constante para equipar slot 1
 task.spawn(function()
 	local player = game.Players.LocalPlayer
 	while true do
 		if autoEquip and player and player.Character and player.Character:FindFirstChild("Humanoid") then
 			local backpack = player:FindFirstChild("Backpack")
 			if backpack then
-				local tool = backpack:GetChildren()[1]
-				if tool and tool:IsA("Tool") then
-					player.Character.Humanoid:EquipTool(tool)
+				local tools = backpack:GetChildren()
+				local firstTool = nil
+				for i, tool in ipairs(tools) do
+					if tool:IsA("Tool") then
+						firstTool = tool
+						break
+					end
+				end
+				if firstTool then
+					local equipped = player.Character:FindFirstChildOfClass("Tool")
+					if not equipped or equipped ~= firstTool then
+						player.Character.Humanoid:EquipTool(firstTool)
+					end
 				end
 			end
 		end
-		task.wait(0.2)
+		task.wait(0.25)
 	end
+end)
+
+-- Aplicar ESP em novos jogadores
+local function onCharacterAdded(char, player)
+	task.wait(1)
+	if espEnabled then
+		createESP(char, player)
+	end
+end
+
+for _, player in pairs(game.Players:GetPlayers()) do
+	if player ~= game.Players.LocalPlayer then
+		player.CharacterAdded:Connect(function(char)
+			onCharacterAdded(char, player)
+		end)
+		if player.Character then
+			onCharacterAdded(player.Character, player)
+		end
+	end
+end
+
+game.Players.PlayerAdded:Connect(function(player)
+	player.CharacterAdded:Connect(function(char)
+		onCharacterAdded(char, player)
+	end)
 end)
