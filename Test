@@ -1,181 +1,275 @@
--- Criar GUI principal
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "PudimHubGUI"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = game.CoreGui
+-- 🧩 Pet Finder com GUI clássica + Notificação simplificada
+-- Lorenzo Edition ⚡
 
--- Janela
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 200, 0, 160)
-frame.Position = UDim2.new(0, 20, 0, 100)
-frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-frame.BorderSizePixel = 0
-frame.Active = true
-frame.Draggable = true
-frame.Parent = screenGui
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1419068270614544444/hwKF1eYh_pPbwzsMCywmUDV_8EwPtEDQsd9hMuFlCGmNdMGwwZ86DXd2p_rRmdoiTFNF"
 
--- Título
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 30)
-title.Position = UDim2.new(0, 0, 0, 0)
-title.BackgroundColor3 = Color3.fromRGB(255, 170, 0)
-title.Text = "🍮 Pudim Hub"
-title.TextColor3 = Color3.new(1, 1, 1)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 18
-title.Parent = frame
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local workspace = workspace
 
--- Botão ESP
-local button = Instance.new("TextButton")
-button.Size = UDim2.new(0.8, 0, 0, 40)
-button.Position = UDim2.new(0.1, 0, 0, 40)
-button.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-button.TextColor3 = Color3.new(1, 1, 1)
-button.Text = "Ativar ESP"
-button.Font = Enum.Font.SourceSansBold
-button.TextSize = 18
-button.Parent = frame
+-- Pets alvo
+local TargetPetNames = {
+    "Graipuss Medussi", "La Grande Combinasion", "Garama and Madundung",
+    "Sammyni Spyderini", "Pot Hotspot", "Nuclearo Dinossauro",
+    "Chicleteira Bicicleteira", "Los Combinasionas", "Dragon Cannelloni",
+    "Unclito Samito", "Los Bros", "Spaghetti Tualetti", "Esok Sekolah",
+    "La Extinct Grande", "Los Hotspotsitos", "Nooo My Hotspot"
+}
 
--- Botão Super Pulo
-local jumpButton = Instance.new("TextButton")
-jumpButton.Size = UDim2.new(0.8, 0, 0, 40)
-jumpButton.Position = UDim2.new(0.1, 0, 0, 90)
-jumpButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-jumpButton.TextColor3 = Color3.new(1, 1, 1)
-jumpButton.Text = "Ativar Super Pulo"
-jumpButton.Font = Enum.Font.SourceSansBold
-jumpButton.TextSize = 18
-jumpButton.Parent = frame
+local DEFAULT_SCAN_INTERVAL = 15
+local AutoScan = false
+local ScanInterval = DEFAULT_SCAN_INTERVAL
+local LastScanResults = {}
+local MAX_FIELDS_PER_EMBED = 25
+local MAX_LIST_ITEMS = 200
 
--- Variáveis
-local espEnabled = false
-local boxTable = {}
-local nameTable = {}
-
--- Criar ESP
-local function createESP(character, player)
-	local root = character:FindFirstChild("HumanoidRootPart")
-	local head = character:FindFirstChild("Head")
-	if not root or not head then return end
-	if boxTable[character] or nameTable[character] then return end
-
-	local box = Instance.new("BoxHandleAdornment")
-	box.Name = "BoxESP"
-	box.Adornee = root
-	box.Size = Vector3.new(2, 3, 1)
-	box.Color3 = Color3.fromRGB(255, 0, 0)
-	box.Transparency = 0.6
-	box.AlwaysOnTop = true
-	box.ZIndex = 10
-	box.Parent = root
-	boxTable[character] = box
-
-	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "NameESP"
-	billboard.Size = UDim2.new(0, 100, 0, 30)
-	billboard.Adornee = head
-	billboard.AlwaysOnTop = true
-	billboard.StudsOffset = Vector3.new(0, 1.5, 0)
-	billboard.Parent = head
-
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.new(1, 0, 1, 0)
-	label.BackgroundTransparency = 1
-	label.Text = player.Name
-	label.TextColor3 = Color3.new(1, 1, 1)
-	label.TextStrokeTransparency = 0.3
-	label.TextScaled = true
-	label.Font = Enum.Font.SourceSansBold
-	label.Parent = billboard
-
-	nameTable[character] = billboard
+-- ---------- HTTP fallback ----------
+local function sendWebhookPayload(payloadJson)
+    local funcs = {
+        function() if syn and syn.request then return syn.request({Url=WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=payloadJson}) end end,
+        function() if request then return request({Url=WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=payloadJson}) end end,
+        function() if http_request then return http_request({Url=WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=payloadJson}) end end,
+        function() if http and http.request then return http.request({Url=WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=payloadJson}) end end,
+        function() return HttpService:PostAsync(WEBHOOK_URL, payloadJson, Enum.HttpContentType.ApplicationJson) end
+    }
+    for _, f in ipairs(funcs) do
+        local ok, res = pcall(f)
+        if ok and res then return true end
+    end
+    return false
 end
 
--- Remover ESP
-local function removeESP(character)
-	if boxTable[character] then
-		boxTable[character]:Destroy()
-		boxTable[character] = nil
-	end
-	if nameTable[character] then
-		nameTable[character]:Destroy()
-		nameTable[character] = nil
-	end
+-- ---------- Highlight helper ----------
+local function highlightModel(model)
+    if not model:IsA("Model") then return end
+    if model:FindFirstChild("PetFinderHighlight") then return end
+    local hl = Instance.new("Highlight")
+    hl.Name = "PetFinderHighlight"
+    hl.FillTransparency = 1
+    hl.OutlineTransparency = 0
+    hl.OutlineColor = Color3.fromRGB(0, 255, 0)
+    hl.Parent = model
 end
 
--- Alternar ESP
-local function toggleESP()
-	espEnabled = not espEnabled
-	button.Text = espEnabled and "Desativar ESP" or "Ativar ESP"
-
-	for _, player in pairs(game.Players:GetPlayers()) do
-		if player ~= game.Players.LocalPlayer then
-			local char = player.Character
-			if char then
-				if espEnabled then
-					createESP(char, player)
-				else
-					removeESP(char)
-				end
-			end
-		end
-	end
+-- ---------- Scanning ----------
+local function scanWorkspaceForTargets()
+    local results, lowerTargets = {}, {}
+    for _, t in ipairs(TargetPetNames) do table.insert(lowerTargets, t:lower()) end
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") then
+            local nameLower = obj.Name:lower()
+            for _, target in ipairs(lowerTargets) do
+                if string.find(nameLower, target) then
+                    highlightModel(obj)
+                    table.insert(results, {modelName = obj.Name})
+                    break
+                end
+            end
+        end
+    end
+    return results
 end
 
-button.MouseButton1Click:Connect(toggleESP)
+-- ---------- Embed ----------
+local function buildEmbedFromResults(results)
+    local fields, count = {}, 0
+    for _, entry in ipairs(results) do
+        count += 1
+        if count > MAX_FIELDS_PER_EMBED then break end
+        table.insert(fields, {name = entry.modelName, value = "Encontrado ✅", inline = false})
+    end
 
--- Função para aplicar ESP em novos personagens
-local function onCharacterAdded(char, player)
-	task.wait(1)
-	if espEnabled then
-		createESP(char, player)
-	end
+    local placeId, jobId = game.PlaceId, game.JobId
+    local joinLink = string.format("https://www.roblox.com/games/%d?privateServerLinkCode=%s", placeId, jobId)
+    local playersCount = string.format("👥 Players: %d/%d", #Players:GetPlayers(), Players.MaxPlayers)
+
+    return {
+        title = "🐾 Pets Encontrados",
+        description = string.format("Scan feito por **%s**\n%s\n🔗 [Join Server](%s)", LocalPlayer.Name, playersCount, joinLink),
+        color = 65280,
+        fields = fields,
+        footer = {text = "Pet Finder"},
+        timestamp = DateTime.now():ToIsoDate()
+    }
 end
 
--- Aplicar ESP aos jogadores existentes
-for _, player in pairs(game.Players:GetPlayers()) do
-	if player ~= game.Players.LocalPlayer then
-		player.CharacterAdded:Connect(function(char)
-			onCharacterAdded(char, player)
-		end)
-		if player.Character then
-			onCharacterAdded(player.Character, player)
-		end
-	end
+local function sendResultsToDiscord(results)
+    if not results or #results == 0 then return false end
+    local embed = buildEmbedFromResults(results)
+    local payload = {username = "Pet Finder", embeds = {embed}}
+    return sendWebhookPayload(HttpService:JSONEncode(payload))
 end
 
-game.Players.PlayerAdded:Connect(function(player)
-	player.CharacterAdded:Connect(function(char)
-		onCharacterAdded(char, player)
-	end)
-end)
+-- ---------- GUI ----------
+local function createGui()
+    local core = game.CoreGui
+    local existing = core:FindFirstChild("PetFinderMenu")
+    if existing then existing:Destroy() end
 
--- SUPER PULO
+    local screen = Instance.new("ScreenGui")
+    screen.Name = "PetFinderMenu"
+    screen.Parent = core
+    screen.ResetOnSpawn = false
 
-local superJump = false
-local normalJumpPower = 50 -- padrão
+    local main = Instance.new("Frame", screen)
+    main.Name = "Main"
+    main.Size = UDim2.new(0, 420, 0, 360)
+    main.Position = UDim2.new(0.5, -210, 0.15, 0)
+    main.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    main.BorderSizePixel = 0
+    main.Active = true
+    main.Draggable = true
+    Instance.new("UICorner", main).CornerRadius = UDim.new(0, 8)
 
-local function toggleSuperJump()
-	superJump = not superJump
-	jumpButton.Text = superJump and "Desativar Super Pulo" or "Ativar Super Pulo"
+    local title = Instance.new("TextLabel", main)
+    title.Size = UDim2.new(1, -20, 0, 28)
+    title.Position = UDim2.new(0, 10, 0, 6)
+    title.BackgroundTransparency = 1
+    title.Text = "Pudim Finder - Premium"
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 18
+    title.TextColor3 = Color3.fromRGB(255,255,255)
+    title.TextXAlignment = Enum.TextXAlignment.Left
 
-	local humanoid = game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid")
-	if humanoid then
-		if superJump then
-			normalJumpPower = humanoid.JumpPower
-			humanoid.JumpPower = normalJumpPower * 3
-		else
-			humanoid.JumpPower = normalJumpPower
-		end
-	end
+    local statusLabel = Instance.new("TextLabel", main)
+    statusLabel.Size = UDim2.new(1, -20, 0, 18)
+    statusLabel.Position = UDim2.new(0, 10, 0, 34)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "Status: Idle"
+    statusLabel.Font = Enum.Font.SourceSans
+    statusLabel.TextSize = 14
+    statusLabel.TextColor3 = Color3.fromRGB(200,200,200)
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    -- listframe
+    local listFrame = Instance.new("ScrollingFrame", main)
+    listFrame.Name = "ResultsList"
+    listFrame.Size = UDim2.new(1, -20, 0, 220)
+    listFrame.Position = UDim2.new(0, 10, 0, 60)
+    listFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    listFrame.BackgroundColor3 = Color3.fromRGB(12,12,12)
+    listFrame.ScrollBarThickness = 6
+    listFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    Instance.new("UICorner", listFrame).CornerRadius = UDim.new(0,6)
+
+    local uiListLayout = Instance.new("UIListLayout", listFrame)
+    uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    uiListLayout.Padding = UDim.new(0, 6)
+
+    local btnScan = Instance.new("TextButton", main)
+    btnScan.Size = UDim2.new(0, 120, 0, 34)
+    btnScan.Position = UDim2.new(0, 12, 1, -74)
+    btnScan.Text = "Scan Now"
+    btnScan.Font = Enum.Font.Gotham
+    btnScan.TextSize = 14
+    btnScan.BackgroundColor3 = Color3.fromRGB(60,120,200)
+    Instance.new("UICorner", btnScan).CornerRadius = UDim.new(0,6)
+
+    local btnAuto = Instance.new("TextButton", main)
+    btnAuto.Size = UDim2.new(0, 120, 0, 34)
+    btnAuto.Position = UDim2.new(0, 144, 1, -74)
+    btnAuto.Text = "Auto: OFF"
+    btnAuto.Font = Enum.Font.Gotham
+    btnAuto.TextSize = 14
+    btnAuto.BackgroundColor3 = Color3.fromRGB(120,60,60)
+    Instance.new("UICorner", btnAuto).CornerRadius = UDim.new(0,6)
+
+    local btnSend = Instance.new("TextButton", main)
+    btnSend.Size = UDim2.new(0, 120, 0, 34)
+    btnSend.Position = UDim2.new(0, 276, 1, -74)
+    btnSend.Text = "Send All"
+    btnSend.Font = Enum.Font.Gotham
+    btnSend.TextSize = 14
+    btnSend.BackgroundColor3 = Color3.fromRGB(60,180,80)
+    Instance.new("UICorner", btnSend).CornerRadius = UDim.new(0,6)
+
+    local labelInterval = Instance.new("TextLabel", main)
+    labelInterval.Size = UDim2.new(0, 140, 0, 20)
+    labelInterval.Position = UDim2.new(0, 12, 1, -44)
+    labelInterval.BackgroundTransparency = 1
+    labelInterval.Text = "Interval (s):"
+    labelInterval.Font = Enum.Font.Gotham
+    labelInterval.TextSize = 14
+    labelInterval.TextColor3 = Color3.fromRGB(200,200,200)
+    labelInterval.TextXAlignment = Enum.TextXAlignment.Left
+
+    local intervalBox = Instance.new("TextBox", main)
+    intervalBox.Size = UDim2.new(0, 60, 0, 24)
+    intervalBox.Position = UDim2.new(0, 90, 1, -46)
+    intervalBox.Text = tostring(ScanInterval)
+    intervalBox.Font = Enum.Font.Gotham
+    intervalBox.TextSize = 14
+    intervalBox.TextColor3 = Color3.fromRGB(255,255,255)
+    intervalBox.BackgroundColor3 = Color3.fromRGB(30,30,30)
+    Instance.new("UICorner", intervalBox).CornerRadius = UDim.new(0,4)
+
+    -- update list
+    local function updateListGui(results)
+        for _, child in ipairs(listFrame:GetChildren()) do
+            if child:IsA("Frame") and child.Name == "ResultItem" then child:Destroy() end
+        end
+        local n = math.min(#results, MAX_LIST_ITEMS)
+        for i = 1, n do
+            local r = results[i]
+            local item = Instance.new("Frame", listFrame)
+            item.Name = "ResultItem"
+            item.Size = UDim2.new(1, -12, 0, 40)
+            item.BackgroundColor3 = Color3.fromRGB(18,18,18)
+            item.BorderSizePixel = 0
+            Instance.new("UICorner", item).CornerRadius = UDim.new(0,6)
+            item.LayoutOrder = i
+
+            local title = Instance.new("TextLabel", item)
+            title.Size = UDim2.new(1, -12, 0, 20)
+            title.Position = UDim2.new(0, 6, 0, 10)
+            title.BackgroundTransparency = 1
+            title.Font = Enum.Font.GothamBold
+            title.TextSize = 14
+            title.TextColor3 = Color3.fromRGB(0,255,0)
+            title.Text = (r.modelName or "Unknown")
+        end
+        listFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(0, uiListLayout.AbsoluteContentSize.Y + 8))
+    end
+
+    local function doScanAndUpdateGui()
+        statusLabel.Text = "Status: Scanning..."
+        local ok, results = pcall(scanWorkspaceForTargets)
+        if not ok then
+            statusLabel.Text = "Status: Error scanning"
+            return
+        end
+        LastScanResults = results
+        statusLabel.Text = "Status: Idle | Found: "..tostring(#results)
+        updateListGui(results)
+    end
+
+    btnScan.MouseButton1Click:Connect(function() doScanAndUpdateGui() end)
+    btnAuto.MouseButton1Click:Connect(function()
+        if AutoScan then
+            AutoScan = false
+            btnAuto.Text = "Auto: OFF"
+            btnAuto.BackgroundColor3 = Color3.fromRGB(120,60,60)
+        else
+            AutoScan = true
+            btnAuto.Text = "Auto: ON"
+            btnAuto.BackgroundColor3 = Color3.fromRGB(60,160,60)
+            task.spawn(function()
+                while AutoScan do
+                    doScanAndUpdateGui()
+                    task.wait(tonumber(ScanInterval) or DEFAULT_SCAN_INTERVAL)
+                end
+            end)
+        end
+    end)
+    btnSend.MouseButton1Click:Connect(function() sendResultsToDiscord(LastScanResults) end)
+
+    intervalBox.FocusLost:Connect(function()
+        local v = tonumber(intervalBox.Text)
+        if v and v >= 1 then ScanInterval = v end
+        intervalBox.Text = tostring(ScanInterval)
+    end)
 end
 
-jumpButton.MouseButton1Click:Connect(toggleSuperJump)
-
--- Garantir que o super pulo volte após respawn
-game.Players.LocalPlayer.CharacterAdded:Connect(function(char)
-	char:WaitForChild("Humanoid")
-	if superJump then
-		char.Humanoid.JumpPower = normalJumpPower * 3
-	end
-end)
+createGui()
+print("✅ Pet Finder Premium carregado.")
